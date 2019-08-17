@@ -1,0 +1,1 @@
+kubectl create secret generic reverse-proxy-auth-config --from-file=authn.yaml=reverse-proxy-conf.yaml --dry-run -o yaml | kubectl apply -f -

@@ -1,0 +1,112 @@
+---
+# Source: loki-stack/charts/loki/templates/statefulset.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: loki
+  namespace: default
+  labels:
+    app: loki
+    chart: loki-0.13.0
+    release: loki
+    heritage: Tiller
+  annotations:
+    {}
+    
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+      release: loki
+  serviceName: loki-headless
+  updateStrategy:
+    type: RollingUpdate
+    
+  template:
+    metadata:
+      labels:
+        app: loki
+        name: loki
+        release: loki
+      annotations:
+        checksum/config: a13d832010caee7d43ebbc7bf6f95dfb77d90e812cffb126036d91f6a8d2c758
+        prometheus.io/port: http-metrics
+        prometheus.io/scrape: "true"
+        
+    spec:
+      serviceAccountName: loki
+      securityContext:
+        fsGroup: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        runAsUser: 10001
+        
+      containers:
+        - name: reverse-proxy
+          image: angelbarrera92/basic-auth-reverse-proxy
+          args:
+            - "serve"
+            - "--upstream=http://localhost:3100"
+            - "--auth-config=/etc/reverse-proxy-conf/authn.yaml"
+          ports:
+            - name: http
+              containerPort: 11811
+              protocol: TCP
+          volumeMounts:
+            - name: reverse-proxy-auth-config
+              mountPath: /etc/reverse-proxy-conf
+        - name: loki
+          image: "grafana/loki:v0.2.0"
+          imagePullPolicy: Always
+          args:
+            - "-config.file=/etc/loki/loki.yaml"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: storage
+              mountPath: "/data"
+              subPath: 
+          ports:
+            - name: http-metrics
+              containerPort: 3100
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 45
+            
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http-metrics
+            initialDelaySeconds: 45
+            
+          resources:
+            {}
+            
+          securityContext:
+            readOnlyRootFilesystem: true
+          env:
+      nodeSelector:
+        {}
+        
+      affinity:
+        {}
+        
+      tolerations:
+        []
+        
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: config
+          secret:
+            secretName: loki
+        - name: storage
+          emptyDir: {}
+        - name: reverse-proxy-auth-config
+          secret:
+            secretName: reverse-proxy-auth-config
+
