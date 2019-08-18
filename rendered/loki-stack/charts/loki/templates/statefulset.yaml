@@ -31,7 +31,7 @@ spec:
         name: loki
         release: loki
       annotations:
-        checksum/config: a13d832010caee7d43ebbc7bf6f95dfb77d90e812cffb126036d91f6a8d2c758
+        checksum/config: 92aa19456003a43a2f55d1dd6d79fd16802d7bccaae850889517922eb7e7f679
         prometheus.io/port: http-metrics
         prometheus.io/scrape: "true"
         
@@ -45,7 +45,7 @@ spec:
         
       containers:
         - name: reverse-proxy
-          image: angelbarrera92/basic-auth-reverse-proxy
+          image: angelbarrera92/basic-auth-reverse-proxy:dev
           args:
             - "serve"
             - "--upstream=http://localhost:3100"
