@@ -186,11 +186,11 @@ Create a new user *(could be different of the grafana loki proxy)*:
 
 ![Grafana Create User](assets/grafana-create-user.png)
 
-Modify the created user to delete from the main organization adding to the created organization.
+Modify the created user to delete from the main organization adding to the created organization as **editor**.
 
 ![Grafana Modify User](assets/grafana-modify-user.png)
 
-Then move to the recently created organization as **editor**:
+Then move to the recently created organization:
 
 ![Grafana Switch User](assets/grafana-switch-org.png)
 
