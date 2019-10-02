@@ -1,0 +1,7 @@
+users:
+  - username: Grafana
+    password: L0k1
+    orgid: tenant-0
+  - username: Tenant1
+    password: 1tnaneT
+    orgid: tenant-1
