@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kail
+spec:
+  selector:
+    matchLabels:
+      app: kail
+      kail.ignore: "true"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kail
+        kail.ignore: "true"
+    spec:
+      serviceAccount: angelbarrerasanchez-gmail-com-kail
+      containers:
+      - name: kail
+        image: angelbarrera92/kail:0.12
+        args:
+          - "/bin/sh"
+          - "-c"
+          - "kail --log-file /tmp/log --log-level debug --ns angelbarrerasanchez-gmail-com-kail >> /tmp/container-logs"
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "80m"
+          limits:
+            memory: "100Mi"
+            cpu: "80m"
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: counter
+spec:
+  containers:
+  - name: count
+    image: busybox
+    args: [/bin/sh, -c,
+            'i=0; while true; do echo "$i: $(date)"; i=$((i+1)); sleep 1; done']
+    resources:
+      requests:
+        memory: "28Mi"
+        cpu: "20m"
+      limits:
+        memory: "28Mi"
+        cpu: "20m"
