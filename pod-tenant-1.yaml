@@ -9,7 +9,7 @@ data:
       http_listen_port: 9080
       grpc_listen_port: 0
     client:
-      url: http://loki:3101/api/prom/push
+      url: http://loki.logging.svc.cluster.local:3101/api/prom/push
       basic_auth:
         username: Tenant1
         password: 1tnaneT
@@ -44,7 +44,7 @@ spec:
   - name: promtail
     args:
       - -config.file=/etc/promtail/promtail.yaml
-    image: grafana/promtail:v0.3.0
+    image: grafana/promtail:v0.4.0
     volumeMounts:
     - name: shared-data
       mountPath: /dir/shared
