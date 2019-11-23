@@ -27,6 +27,9 @@ users:
   - username: Tenant1
     password: 1tnaneT
     orgid: tenant-1
+  - username: Tenant2
+    password: 2tnaneT
+    orgid: tenant-2
 ```
 
 This file is required by the [`loki-multi-tenant-proxy`](https://github.com/k8spin/loki-multi-tenant-proxy). This will be used by the proxy to forward requests to the grafana loki server authenticating every request and injecting the required loki server headers.
@@ -124,9 +127,9 @@ NAME     READY   STATUS    RESTARTS   AGE
 loki-0   2/2     Running   0          9m32s
 ```
 
-#### Tenant 1
+#### Tenant 0
 
-You can find in [tenant-1.yaml](tenant-1.yaml) file all required resources to configure the log-recolector inside a new tenant. Those resources inclues:
+You can find in [tenant-0.yaml](tenant-0.yaml) file all required resources to configure the log-recolector inside a new tenant. Those resources inclues:
 
 - Namespace definition
 - Log Recolector service Account
@@ -147,8 +150,8 @@ server:
 client:
   url: http://loki.default.svc.cluster.local:3101/api/prom/push
   basic_auth:
-    username: Tenant1
-    password: 1tnaneT
+    username: Grafana
+    password: L0k1
 scrape_configs:
   - job_name: containers
     static_configs:
@@ -196,16 +199,16 @@ Important notes about this configuration:
 Deploy it:
 
 ```bash
-$ kubectl apply -f tenant-1.yaml 
-namespace/tenant-1 created
+$ kubectl apply -f tenant-0.yaml 
+namespace/tenant-0 created
 serviceaccount/log-recolector created
 rolebinding.rbac.authorization.k8s.io/log-recolector created
 deployment.apps/log-recolector created
-secret/tenant-1-log-recolector-config created
+secret/tenant-0-log-recolector-config created
 ```
 
 ```bash
-$ kubectl get pods -n tenant-1
+$ kubectl get pods -n tenant-0
 NAME                             READY   STATUS    RESTARTS   AGE
 log-recolector-5cf8d5889-jvtnf   2/2     Running   0          15s
 ```
@@ -213,13 +216,13 @@ log-recolector-5cf8d5889-jvtnf   2/2     Running   0          15s
 Deploy an example application that writes logs to the standard output *(following best practices)*.
 
 ```bash
-$ kubectl apply -f counter.yaml -n tenant-1
+$ kubectl apply -f counter.yaml -n tenant-0
 ```
 
 You can see it logs using `kubectl logs` command:
 
 ```bash
-$ kubectl logs -f counter -n tenant-1
+$ kubectl logs -f counter -n tenant-0
 0: Sat Nov 23 13:51:17 UTC 2019
 1: Sat Nov 23 13:51:19 UTC 2019
 2: Sat Nov 23 13:51:20 UTC 2019
