@@ -12,7 +12,6 @@ This POC demonstrate how to use Grafana, Grafana loki and Promtail to push logs 
 ## Out of scope
 
 - `NetworkPolicies` isolating *tenants/namespaces*: Consider deploy each pod in a separate namespace. The loki server has to be in another namespace. Just open connectivity between pods with promtail to the Grafana Loki server (Proxy).
-- `promtail auto-inject`: As this POC demonstrate how to run promtail as sidecar container to push logs to a multi-tenant loki server, would be interesting to have a mechanism to auto inject the sidecar once a pod label is present. Something similar to: [k8s-sidecar-injector](https://github.com/tumblr/k8s-sidecar-injector).
 
 ### Start
 
@@ -125,56 +124,111 @@ NAME     READY   STATUS    RESTARTS   AGE
 loki-0   2/2     Running   0          9m32s
 ```
 
-#### Deploy a pod example tied to a tenant (promtail inside)
+#### Tenant 1
 
-This example has a promtail sidecar container configured to push logs through the multi-tenant proxy. It's deployed as a sidecar container *(instead of daemonset)* because in some scenarios there is no mount volume host permissions.
+You can find in [tenant-1.yaml](tenant-1.yaml) file all required resources to configure the log-recolector inside a new tenant. Those resources inclues:
 
-`promtail.yaml` multi-tenant configuration file:
+- Namespace definition
+- Log Recolector service Account
+  - Log Recolector role bindings
+- Log Recolector deployment
+- Log Recolector configuration *(promtail configuration)*
+
+The log recolector is a kubernetes `deployment` with a multi-container pod definition, it includes: [promtail](https://github.com/grafana/loki/tree/master/cmd/promtail) + [kail](https://github.com/boz/kail).
+
+Don't worry, all is preconfigured to just apply the configuration and get it up and running and a few seconds.
+
+The authentication and the log parser are configured in the `promtail.yaml` file *(inside a kubernetes secret)*:
 
 ```yaml
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
 client:
-  url: http://loki:3101/api/prom/push
+  url: http://loki.default.svc.cluster.local:3101/api/prom/push
   basic_auth:
-    username: Grafana
-    password: L0k1
+    username: Tenant1
+    password: 1tnaneT
 scrape_configs:
-  - job_name: sidecar-logs
+  - job_name: containers
     static_configs:
       - targets:
           - localhost
         labels:
-          job: sidecar-logs
-          __path__: /dir/shared/*
+          job: containers
+          __path__: /loki/logs/containers
+    pipeline_stages:
+    - regex:
+        expression: '^(?P<namespace>.*)\/(?P<pod>.*)\[(?P<container>.*)\]: (?P<content>.*)'
+    - labels:
+        namespace:
+        pod:
+        container:
+    - output:
+        source: content
+  - job_name: kail
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kail
+          __path__: /loki/logs/kail
+    pipeline_stages:
+    - regex:
+        expression: '^time="(?P<time>.*)" level=(?P<level>.*) msg="(?P<content>.*)" cmp=(?P<component>.*)'
+    - labels:
+        time:
+        level:
+        component:
+    - timestamp:
+        source: time
+        format: RFC3339
+    - output:
+        source: content
 ```
 
 Important notes about this configuration:
 
 - `client.url` parameter is the proxy server, not the loki server.
 - `client.basic_auth` object is the proxy server authentication configured in previous steps.
-- `scrape_configs[0]` is configured to read from the shared filesystem where logs are stored by the app container inside the pod.
-
-So, the app container writes logs in a shared volume between both containers inside the pod.
+- `scrape_configs` configurations are configured to parse namespaced logs forwarding it's metadata as labels to loki server. It also parse `kail` logs.
 
 Deploy it:
 
 ```bash
-$ kubectl apply -f pod-tenant-0.yaml 
-configmap/loki-promtail-tenant-0 created
-pod/counter-tenant-0 created
+$ kubectl apply -f tenant-1.yaml 
+namespace/tenant-1 created
+serviceaccount/log-recolector created
+rolebinding.rbac.authorization.k8s.io/log-recolector created
+deployment.apps/log-recolector created
+secret/tenant-1-log-recolector-config created
 ```
 
 ```bash
-$ kubectl get pods
-NAME                           READY   STATUS    RESTARTS   AGE
-loki-grafana-974f55bb6-n2gqr   1/1     Running   0          64m
-loki-0                         2/2     Running   0          39m
-counter-tenant-0               2/2     Running   0          49s
+$ kubectl get pods -n tenant-1
+NAME                             READY   STATUS    RESTARTS   AGE
+log-recolector-5cf8d5889-jvtnf   2/2     Running   0          15s
 ```
 
-Check the `counter-tenant-0` pod has two containers, the promtail and the application.
+Deploy an example application that writes logs to the standard output *(following best practices)*.
+
+```bash
+$ kubectl apply -f counter.yaml -n tenant-1
+```
+
+You can see it logs using `kubectl logs` command:
+
+```bash
+$ kubectl logs -f counter -n tenant-1
+0: Sat Nov 23 13:51:17 UTC 2019
+1: Sat Nov 23 13:51:19 UTC 2019
+2: Sat Nov 23 13:51:20 UTC 2019
+3: Sat Nov 23 13:51:21 UTC 2019
+4: Sat Nov 23 13:51:22 UTC 2019
+5: Sat Nov 23 13:51:23 UTC 2019
+```
+
+It prints only the current date every second.
 
 ## Grafana configuration
 
