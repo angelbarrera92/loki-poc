@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kail
+  name: log-recolector
 spec:
   selector:
     matchLabels:
-      app: kail
+      app: log-recolector
       kail.ignore: "true"
   replicas: 1
   template:
     metadata:
       labels:
-        app: kail
+        app: log-recolector
         kail.ignore: "true"
     spec:
       serviceAccountName: PUT_YOUR_NAMESPACE_HERE
