@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-recolector
+spec:
+  selector:
+    matchLabels:
+      app: log-recolector
+      kail.ignore: "true"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: log-recolector
+        kail.ignore: "true"
+    spec:
+      serviceAccountName: PUT_YOUR_NAMESPACE_HERE
+      volumes:
+      - name: shared-data
+        emptyDir: {}
+      - name: promtail-config
+        secret:
+          secretName: loki-PUT_YOUR_NAMESPACE_HERE
+      containers:
+      - name: kail
+        image: angelbarrera92/kail:0.12
+        args:
+          - "/bin/sh"
+          - "-c"
+          - "kail --log-file /loki/logs/kail --log-level debug --ns PUT_YOUR_NAMESPACE_HERE >> /loki/logs/containers"
+        volumeMounts:
+        - name: shared-data
+          mountPath: /loki/logs
+        resources:
+          requests:
+            memory: "25Mi"
+            cpu: "20m"
+          limits:
+            memory: "25Mi"
+            cpu: "20m"
+      - name: promtail
+        args:
+          - -config.file=/etc/promtail/promtail.yaml
+        image: grafana/promtail:v1.0.0
+        resources:
+          requests:
+            memory: "50Mi"
+            cpu: "30m"
+          limits:
+            memory: "50Mi"
+            cpu: "30m"
+        volumeMounts:
+        - name: shared-data
+          mountPath: /loki/logs
+        - name: promtail-config
+          mountPath: /etc/promtail
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loki-PUT_YOUR_NAMESPACE_HERE
+stringData:
+  promtail.yaml:  |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+    client:
+      url: https://loki.k3s.k8spin.cloud/api/prom/push
+      basic_auth:
+        username: Grafana
+        password: L0k1
+    scrape_configs:
+      - job_name: containers
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: containers
+              __path__: /loki/logs/containers
+        pipeline_stages:
+        - regex:
+            expression: '^(?P<namespace>.*)\/(?P<pod>.*)\[(?P<container>.*)\]: (?P<content>.*)'
+        - labels:
+            namespace:
+            pod:
+            container:
+        - output:
+            source: content
+      - job_name: kail
+        static_configs:
+          - targets:
+              - localhost
+            labels:
+              job: kail
+              __path__: /loki/logs/kail
+        pipeline_stages:
+        - regex:
+            expression: '^time="(?P<time>.*)" level=(?P<level>.*) msg="(?P<content>.*)" cmp=(?P<component>.*)'
+        - labels:
+            time:
+            level:
+            component:
+        - timestamp:
+            source: time
+            format: RFC3339
+        - output:
+            source: content
